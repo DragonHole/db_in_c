@@ -18,10 +18,13 @@
 # 	./build/debug/foo	# lets execute it
 
 
-SRC_DIR = .
+SRC_DIR=.
 BUILD_DIR = build/debug
 CC = gcc # the built-in g++ doesn't work for some reason, but what the heck i don't care..
-SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
+# SRC_FILES = $(wildcard $(SRC_DIR)/*.c)
+SRC_FILES = $(wildcard *.c)
+$(info SRC_FILES=$(SRC_FILES))
+
 
 OBJ_NAME = db
 # LIBRARY_PATHS = -L/opt/homebrew/Cellar/sdl2/2.0.22/lib/ -L/opt/homebrew/Cellar/sdl2_image/2.0.5/lib
@@ -34,3 +37,15 @@ all:
 run:
 	$(CC) $(COMPILER_FLAG) $(LIBRARY_PATHS) $(SRC_FILES) -o $(BUILD_DIR)/$(OBJ_NAME)
 	$(BUILD_DIR)/$(OBJ_NAME)	# lets execute it
+
+
+
+
+
+
+#  makefile re-structuring
+#  https://stackoverflow.com/questions/30573481/how-to-write-a-makefile-with-separate-source-and-header-directories
+SRC_DIR := src
+BIN_DIR := bin
+
+

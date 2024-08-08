@@ -118,16 +118,19 @@ char **wldb_split_line(char *line) {
 
 int wldb_cd(char **args, Table *table);
 int wldb_exit(char **args, Table *table);
+int wldb_btree_print(char **args, Table *table);
 
 char *builtin_funcs_str[] = {
     "cd",
-    "exit"
+    "exit",
+	"btree"
 };
 
 // list of function pointers
 int (*builtin_funcs[]) (char **, Table *table) = {
     &wldb_cd,
-    &wldb_exit
+    &wldb_exit,
+	&wldb_btree_print
 };
 
 int wldb_num_builtins() {
@@ -152,6 +155,11 @@ int wldb_exit(char **args, Table *table) {
     return -1; 
 }
 
+int wldb_btree_print(char **args, Table *table) {
+	print_leaf_node(pager_get_page(table->pager, 0));
+	return 0;
+}
+
 int wldb_process(char **args, Table *table){
     int num_builtins = wldb_num_builtins();
     if(strncmp(args[0], ".", 1) == 0) { // it's a meta command
@@ -172,8 +180,12 @@ int wldb_process(char **args, Table *table){
         case COMPILE_UNRECOGNIZED:
             fprintf(stderr, "Unrecognized SQL command\n");
             return -1;
+            // return -1;
         case COMPILE_SYNTAX_ERROR:
             fprintf(stderr, "Compile failure\n");
+            return -1;
+        default:
+            fprintf(stderr, "case defaulted!!??\n");
             return -1;
     }
 
@@ -198,7 +210,7 @@ StatementType sql_cmd_strs[] = {
     STATEMENT_INSERT
 };
 
-/// @brief list of function pointers
+/// @brief list of function pointers, the order matters
 ExecuteResult (*sql_cmd_funcs[]) (Statement, Table *) = {
     &wldb_select,
     &wldb_insert
@@ -212,7 +224,7 @@ ExecuteResult wldb_select(Statement statement, Table *table) {
     printf("select called\n");
     Row row;
     Cursor *cursor = table_start(table);
-    printf("%d\n", table->num_rows);
+    // printf("%d\n", table->num_rows);
 
     while (!(cursor->end_of_table)) {
         deserialize_row(cursor_value(cursor), &row);
@@ -227,17 +239,14 @@ ExecuteResult wldb_select(Statement statement, Table *table) {
 
 ExecuteResult wldb_insert(Statement statement, Table *table) {
     printf("insert called\n");
-    if(table->num_rows >= TABLE_MAX_ROWS) {
-        return EXECUTE_TABLE_FULL;
-    }
+
+    void *node = pager_get_page(table->pager, table->root_page_num);
+    uint32_t num_cells = *leaf_node_num_cells(node);
 
     Row *row_to_insert = &(statement.row_to_insert);
     Cursor *cursor = table_end(table);
 
-    // insert at the end
-    serialize_row(row_to_insert, cursor_value(cursor));
-    //serialize_row(&(statement.row_to_insert), row_slot(table, table->num_rows));
-    table->num_rows += 1;
+    leaf_node_insert(cursor, row_to_insert->id, row_to_insert);
 
     free(cursor);
 
