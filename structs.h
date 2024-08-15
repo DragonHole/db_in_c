@@ -164,6 +164,7 @@ void *leaf_node_value(void *node, uint32_t cell_num) {
 
 void initialize_leaf_node(void *node) {
     *leaf_node_num_cells(node) = 0;
+    set_node_type(node, NODE_LEAF_TYPE);
 }
 
 
@@ -521,6 +522,7 @@ void print_row(Row *row) {
 void print_leaf_node(void *node) {
 	uint32_t num_cells = *leaf_node_num_cells(node);
 	printf("leaf size: %lu\n", (unsigned long)num_cells);
+    printf("leaf type: %d\n", (uint8_t)node_type(node));
 	for(int i=0; i < num_cells; i++) {
 		uint32_t key = *(uint32_t *)leaf_node_key(node, i);
 		printf(" #%d - key %d - \n", i, key);

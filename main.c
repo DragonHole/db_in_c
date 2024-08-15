@@ -255,6 +255,8 @@ ExecuteResult wldb_insert(Statement statement, Table *table) {
     uint32_t key_to_insert = row_to_insert->id;
     Cursor *cursor = table_find(table, key_to_insert);
 
+    printf("go to here\n");
+
     if(cursor->cell_num > num_cells) {
         printf("index reference out of range.\n");
         exit(EXIT_FAILURE);
