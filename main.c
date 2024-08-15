@@ -198,6 +198,9 @@ int wldb_process(char **args, Table *table){
         case EXECUTE_UNDEFINED_ERROR:
             fprintf(stderr, "Undefined execution error");
             return -1;
+        default:
+            fprintf(stderr, "what's going on? unknown execution result state\n");
+            break;
     }
 }
 
@@ -243,8 +246,26 @@ ExecuteResult wldb_insert(Statement statement, Table *table) {
     void *node = pager_get_page(table->pager, table->root_page_num);
     uint32_t num_cells = *leaf_node_num_cells(node);
 
+    if(num_cells > LEAF_NODE_MAX_CELLS) {
+        printf("Max cell count reached, need to implement split node\n");
+        return EXECUTE_TABLE_FULL;
+    }
+
     Row *row_to_insert = &(statement.row_to_insert);
-    Cursor *cursor = table_end(table);
+    uint32_t key_to_insert = row_to_insert->id;
+    Cursor *cursor = table_find(table, key_to_insert);
+
+    if(cursor->cell_num > num_cells) {
+        printf("index reference out of range.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    uint32_t key_at_index = *(uint32_t *)leaf_node_key(node, cursor->cell_num);
+
+    if(key_at_index == key_to_insert) {
+        printf("insert error: duplicate key\n");
+        return EXECUTE_DUPLICATE_KEY;
+    }
 
     leaf_node_insert(cursor, row_to_insert->id, row_to_insert);
 
@@ -284,6 +305,9 @@ ExecuteResult wldb_execute(Statement statement, Table *table){
     int num_sql_builtins = wldb_num_sql_builtins();
     for(int i = 0; i < num_sql_builtins; i++) {
         if(sql_cmd_strs[i] == statement.type) { // comparing 2 enums
+            // todo: could do some error handling for the return values of type ExecuteResult
+            // e.g int ret = *(sql_cmd_funcs...), if(ret == EXECUTE_TABLE_FULL...etc)
+            // or just deal in each individual funcs, also fine actually...
             return (*sql_cmd_funcs[i])(statement, table);
         }   
     }

@@ -14,9 +14,10 @@ typedef enum {
 } CompileResult;
 
 typedef enum {
-    EXECUTE_TABLE_FULL,
     EXECUTE_SUCCESS,
-    EXECUTE_UNDEFINED_ERROR
+    EXECUTE_TABLE_FULL,
+    EXECUTE_UNDEFINED_ERROR,
+    EXECUTE_DUPLICATE_KEY
 } ExecuteResult;
 
 typedef enum {
@@ -69,6 +70,10 @@ const uint32_t PAGE_SIZE = 4096; //4k
 // const uint32_t ROWS_PER_PAGE = PAGE_SIZE / ROW_SIZE;
 // const uint32_t TABLE_MAX_ROWS = ROWS_PER_PAGE * TABLE_MAX_PAGES;
 
+typedef enum {
+    NODE_INTERNAL_TYPE, 
+    NODE_LEAF_TYPE
+} NodeType;
 
 /* node common header layout, all nodes will have this regardless of internal or leaf
 Node Type: Enum
@@ -86,6 +91,14 @@ const uint32_t NODE_COMMON_HEADER_SIZE =
     + NODE_ISROOT_SIZE
     + NODE_PARENTPTR_SIZE;
 
+
+NodeType node_type(void *node) {
+    return (NodeType)*(uint8_t *)(node + NODE_TYPE_OFFSET);
+}
+
+void set_node_type(void *node, NodeType type) {
+    *(uint8_t *)(node + NODE_TYPE_OFFSET) = (uint8_t)type;
+}
 
 /* Leaf node header layout 
 NUM_CELLS: a variable storing how many cells(key-value pair) this leaf contains? 
@@ -152,6 +165,7 @@ void *leaf_node_value(void *node, uint32_t cell_num) {
 void initialize_leaf_node(void *node) {
     *leaf_node_num_cells(node) = 0;
 }
+
 
 // takes in a pager number, then return back a block of memory
 // all fields except the pages are initialized at struct creation
@@ -359,7 +373,7 @@ void leaf_node_insert(Cursor *cursor, uint32_t key, Row *value) {
     uint32_t num_cells = *leaf_node_num_cells(node);
 
     if(num_cells > LEAF_NODE_MAX_CELLS) {
-        printf("Max cell count reached, need to implement split node\n");
+        printf("this shouldn't reach\n");
         exit(EXIT_FAILURE);
     }
 
@@ -405,6 +419,71 @@ Cursor* table_end(Table* table) {
   cursor->end_of_table = true;
   
   return cursor;
+}
+
+/// @brief finds the index position of the cell by key
+/// @param table 
+/// @param key 
+/// @return 0 on success, -1 if not found
+uint32_t leaf_node_find(Table *table, uint32_t key, uint32_t *page_num_ret, uint32_t *cell_num_ret) {
+    void *node = pager_get_page(table->pager, table->root_page_num);
+    uint32_t num_cells = *leaf_node_num_cells(node);
+
+    // bin search 
+    uint32_t l = 0;
+    uint32_t r = num_cells - 1; // last cell 
+    uint32_t mid = 0;
+    uint32_t result = 0;
+    uint32_t key_at_index = 0;
+
+    while(l <= r) {
+        mid = (r + l) / 2;
+        key_at_index = (uint32_t)*(uint32_t *)leaf_node_key(node, mid); 
+        if(key_at_index == key) {
+            *page_num_ret = table->root_page_num;
+            *cell_num_ret = mid;
+            return 0;
+        } else if(key_at_index < key) {
+            l = mid + 1;
+        } else {
+            r = mid;
+        }
+    }
+
+    // if not found, return the index of another key which we need to move in order to insert the new record
+    *page_num_ret = table->root_page_num;
+    *cell_num_ret = l;
+    return 0;
+}
+
+/// @brief return cursor at found cell
+/// @param table 
+/// @param key 
+/// @return 
+Cursor *table_find(Table *table, uint32_t key) {
+    Cursor *cursor = malloc(sizeof(Cursor));
+    cursor->table = table;
+    uint32_t cell_num_ret;
+    uint32_t page_num_ret;
+
+    void *node = pager_get_page(table->pager, table->root_page_num);
+
+    if(node_type(node) == NODE_LEAF_TYPE) {
+        uint32_t i = leaf_node_find(table, key, &page_num_ret, &cell_num_ret);
+        if (i == -1) {
+            fprintf(stderr, "node not found in leaf node\n");
+            free(cursor);
+            return NULL;
+        }
+
+        cursor->page_num = page_num_ret;
+        cursor->cell_num = cell_num_ret;
+        return cursor;
+    }
+    else {
+        fprintf(stderr, "to implement internal node key search\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 /// @brief returns the value currently being pointed by the cursor
